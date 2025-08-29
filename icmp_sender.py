@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
 icmp_sender_padded.py -- Enviar caracteres de un string como paquetes ICMP
-con padding exacto de 40 bytes según captura de Wireshark.
+con padding exacto de 40 bytes según captura de Wireshark,
+pero con ID y Seq coherentes, y timestamp incluido.
 """
 
 import sys
+import os
+import time
 from scapy.all import ICMP, IP, send
 
 # Padding exacto de la captura (desde 0x10 hasta 0x37)
@@ -22,18 +25,31 @@ WIRESHARK_PADDING = bytes([
 ])
 
 def send_string_icmp_padded(text: str, dest_ip: str):
-    total_size = 40  # bytes del campo data
+    pid = os.getpid() & 0xFFFF  # ID coherente con el proceso
+    seq = 1
 
     for i, ch in enumerate(text):
-        char_byte = ch.encode('utf-8')
-        # Reemplazamos los primeros bytes del padding con el carácter
-        # y completamos hasta 40 bytes con el padding de Wireshark
+        char_byte = ch.encode("utf-8")
         if len(char_byte) > 1:
             raise ValueError("Solo se puede enviar un carácter por paquete")
-        data = char_byte + WIRESHARK_PADDING[1:]  # Primer byte es tu carácter
-        packet = IP(dst=dest_ip)/ICMP()/data
+
+        # Timestamp de 8 bytes (segundos + microsegundos desde epoch)
+        now = time.time()
+        sec = int(now)
+        usec = int((now - sec) * 1_000_000)
+        timestamp = sec.to_bytes(4, "big") + usec.to_bytes(4, "big")
+
+        # Construcción de data: 1er byte es el carácter, resto padding fijo
+        data = char_byte + WIRESHARK_PADDING[1:]
+        # Anteponer el timestamp
+        data = timestamp + data
+
+        # ICMP con ID fijo y seq incremental
+        packet = IP(dst=dest_ip)/ICMP(id=pid, seq=seq)/data
         send(packet, verbose=False)
-        print(f"[{i+1}/{len(text)}] Enviado: '{ch}' -> {len(data)} bytes a {dest_ip}")
+        print(f"[{i+1}/{len(text)}] Enviado: '{ch}' | ID={pid}, Seq={seq}, {len(data)} bytes")
+
+        seq += 1
 
 def main(argv):
     if len(argv) != 2:
