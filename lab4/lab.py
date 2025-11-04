@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-Programa: cifrado_cbc_menu.py
 Requisitos: pip install pycryptodome
 
 Descripción:
