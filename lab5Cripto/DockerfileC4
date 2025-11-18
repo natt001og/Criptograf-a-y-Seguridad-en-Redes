@@ -1,0 +1,24 @@
+FROM ubuntu:22.10
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN sed -i 's|archive.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list && \
+    sed -i 's|security.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y \
+    openssh-client \
+    openssh-server \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /var/run/sshd
+
+# Usuario prueba con contraseña prueba
+RUN useradd -m -s /bin/bash prueba && \
+    echo "prueba:prueba" | chpasswd
+
+# Habilitar login por contraseña
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+EXPOSE 22
+
+CMD ["/usr/sbin/sshd", "-D"]
